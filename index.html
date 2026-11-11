@@ -33,8 +33,8 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hid
 .dot.you{background:var(--you)} .dot.pip{background:var(--pip)} .dot.moxie{background:var(--moxie)}
 .gem{width:12px;height:15px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;border:2px solid var(--ink)}
 .gem.common{background:var(--common)} .gem.rare{background:var(--rare)} .gem.epic{background:var(--epic)}
-#toasts{position:absolute;left:0;right:0;bottom:128px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
-.toast{background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:12px;font-weight:800;font-size:14px;text-align:center;max-width:100%;animation:toast 2.4s ease forwards}
+#toasts{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 104px);display:flex;flex-direction:column;align-items:center;gap:6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.toast{background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:12px;font-weight:800;font-size:13px;opacity:.92;text-align:center;max-width:100%;animation:toast 2.4s ease forwards}
 #stick{position:absolute;width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;border:3px solid rgba(31,47,44,.55);background:rgba(255,255,255,.28);pointer-events:none}
 #knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(31,47,44,.75)}
 #dash{position:absolute;right:calc(18px + env(safe-area-inset-right,0px));bottom:24px;width:88px;height:88px;border-radius:50%;border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);background:conic-gradient(var(--gold) calc(var(--cd,100)*1%),#e3d9bd 0);color:var(--ink);font-family:var(--display);font-size:20px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;touch-action:none}
@@ -63,7 +63,7 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hid
 .diff button:focus-visible{outline:3px solid var(--you);outline-offset:2px}
 .diff-note{font-size:13px;font-weight:600;opacity:.8;margin:0 0 14px;min-height:2.6em;line-height:1.3}
 #hint{position:absolute;left:calc(26px + env(safe-area-inset-left,0px));bottom:30px;width:96px;height:96px;border-radius:50%;border:3px dashed rgba(31,47,44,.4);background:rgba(255,255,255,.18);pointer-events:none;display:none}
-@media (pointer:coarse){#hint{display:block}#dash{width:96px;height:96px;bottom:28px}#toasts{bottom:150px}}
+@media (pointer:coarse){#hint{display:block}#dash{width:96px;height:96px;bottom:28px}#toasts{top:calc(env(safe-area-inset-top,0px) + 112px)}}
 @keyframes toast{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
 @keyframes pulse{to{background:#ffb8ab}}
 @media (prefers-reduced-motion:reduce){.toast,#timerChip.low{animation:none}}
