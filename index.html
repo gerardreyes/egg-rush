@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Egg Rush</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: full-bleed 3D meadow, toy-style HUD chips pinned along the top, dash button bottom-right, one centered card for start and results. Single bright daytime look by choice. */
+:root{
+  --sky:#bfe6ee; --ink:#1f2f2c; --paper:#fffaf0; --gold:#f0b429;
+  --you:#2f6fe4; --pip:#e8782a; --moxie:#d94c93;
+  --common:#7fd6c2; --rare:#a07bff; --epic:#ffc933;
+  --body:'Nunito',system-ui,sans-serif; --display:'Fredoka','Nunito',system-ui,sans-serif;
+}
+html,body{height:100%}
+body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+#app{position:relative;height:100%;overflow:hidden;background:var(--sky)}
+#stage{position:absolute;inset:0}
+#stage canvas{display:block;width:100%;height:100%}
+#hud{position:absolute;top:0;left:0;right:0;padding-top:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:7px;min-width:0;padding:5px 12px;background:var(--paper);border:2.5px solid var(--ink);border-radius:14px;box-shadow:0 3px 0 var(--ink);font-weight:800;font-size:14px;line-height:1.2}
+.chip b{font-family:var(--display);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.chip.you{background:#e3edff}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+#timerChip b{font-size:22px;min-width:2.4ch}
+#timerChip.low{background:#ffd9d2;animation:pulse .6s infinite alternate}
+.dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--ink)}
+.dot.you{background:var(--you)} .dot.pip{background:var(--pip)} .dot.moxie{background:var(--moxie)}
+.gem{width:12px;height:15px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;border:2px solid var(--ink)}
+.gem.common{background:var(--common)} .gem.rare{background:var(--rare)} .gem.epic{background:var(--epic)}
+#toasts{position:absolute;left:0;right:0;bottom:128px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.toast{background:var(--ink);color:var(--paper);padding:7px 14px;border-radius:12px;font-weight:800;font-size:14px;text-align:center;max-width:100%;animation:toast 2.4s ease forwards}
+#stick{position:absolute;width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;border:3px solid rgba(31,47,44,.55);background:rgba(255,255,255,.28);pointer-events:none}
+#knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(31,47,44,.75)}
+#dash{position:absolute;right:calc(18px + env(safe-area-inset-right,0px));bottom:24px;width:88px;height:88px;border-radius:50%;border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);background:conic-gradient(var(--gold) calc(var(--cd,100)*1%),#e3d9bd 0);color:var(--ink);font-family:var(--display);font-size:20px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;touch-action:none}
+#dash:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+#dash:focus-visible,.go:focus-visible{outline:3px solid var(--you);outline-offset:3px}
+#overlay{position:absolute;inset:0;display:grid;place-items:center;padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));background:rgba(31,47,44,.38)}
+.card{width:min(460px,100%);max-height:100%;overflow:auto;background:var(--paper);border:3px solid var(--ink);border-radius:22px;box-shadow:0 8px 0 var(--ink);padding:22px 22px 20px}
+.card h1{font-family:var(--display);font-size:44px;font-weight:600;line-height:1;margin:0 0 6px;text-wrap:balance}
+.card .tag{font-weight:800;opacity:.75;margin:0 0 14px}
+.card ul{margin:0 0 14px;padding-left:18px;display:grid;gap:6px;font-weight:600;font-size:15px;line-height:1.35}
+.card .keys{font-size:13px;font-weight:600;opacity:.75;margin:0 0 16px;line-height:1.4}
+.go{font-family:var(--display);font-size:22px;font-weight:600;background:var(--gold);color:var(--ink);border:3px solid var(--ink);border-radius:16px;padding:10px 22px;box-shadow:0 4px 0 var(--ink);cursor:pointer;width:100%}
+.go:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.rank{display:grid;gap:6px;margin:0 0 12px}
+.rank div{display:flex;align-items:center;gap:8px;font-weight:800;padding:6px 10px;border:2px solid var(--ink);border-radius:12px;background:#fff}
+.rank div:first-child{background:#fff0bf}
+.rank b{margin-left:auto;font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums}
+.sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;font-size:14px;margin:0 0 16px}
+@keyframes toast{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+@keyframes pulse{to{background:#ffb8ab}}
+@media (prefers-reduced-motion:reduce){.toast,#timerChip.low{animation:none}}
+@media (max-width:480px){.card h1{font-size:36px}}
+</style>
+<style>html,body{margin:0;padding:0}</style>
+</head>
+<body>
+
+
+<div id="app">
+  <div id="stage"></div>
+  <div id="hud">
+    <div class="row">
+      <div class="chip" id="timerChip"><span class="lbl">Time</span><b id="timer">3:00</b></div>
+      <div class="chip you"><i class="dot you"></i><span>You</span><b id="sYou">0</b></div>
+      <div class="chip"><i class="dot pip"></i><span>Pip</span><b id="sPip">0</b></div>
+      <div class="chip"><i class="dot moxie"></i><span>Moxie</span><b id="sMoxie">0</b></div>
+    </div>
+    <div class="row">
+      <div class="chip" id="carry">Hands free</div>
+      <div class="chip"><span class="lbl">Hatched</span><i class="gem common"></i><b id="cC">0</b><i class="gem rare"></i><b id="cR">0</b><i class="gem epic"></i><b id="cE">0</b></div>
+    </div>
+  </div>
+  <div id="toasts"></div>
+  <div id="stick" hidden><div id="knob"></div></div>
+  <button id="dash" type="button">Dash</button>
+  <div id="overlay"><div class="card" id="card"></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const host=$('stage'), card=$('card'), overlay=$('overlay');
+let renderer;
+try{renderer=new THREE.WebGLRenderer({antialias:true});}
+catch(err){card.innerHTML='<h1>Egg Rush</h1><p class="tag">This browser could not start 3D graphics (WebGL). Try another browser or device.</p>';return;}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.shadowMap.enabled=true;
+host.appendChild(renderer.domElement);
+
+const SKY=0xbfe6ee;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(SKY);
+scene.fog=new THREE.Fog(SKY,48,100);
+const camera=new THREE.PerspectiveCamera(48,1,.1,200);
+scene.add(new THREE.HemisphereLight(0xffffff,0x6aa56a,.95));
+const sun=new THREE.DirectionalLight(0xfff0cf,.85);
+sun.position.set(18,34,12);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+Object.assign(sun.shadow.camera,{left:-42,right:42,top:42,bottom:-42,near:1,far:90});
+scene.add(sun);
+function resize(){
+  const w=host.clientWidth||window.innerWidth,h=host.clientHeight||window.innerHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host);resize();
+
+// ---------- shape kit: everything is built from a few primitives ----------
+const M=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85,metalness:0,flatShading:true},o||{}));
+const G={
+  sph:new THREE.SphereGeometry(1,16,12),
+  box:new THREE.BoxGeometry(1,1,1),
+  cyl:new THREE.CylinderGeometry(1,1,1,14),
+  cone:new THREE.ConeGeometry(1,1,10),
+  dome:new THREE.SphereGeometry(1,16,8,0,Math.PI*2,0,Math.PI/2),
+  rock:new THREE.IcosahedronGeometry(1,0)
+};
+function part(g,color,x,y,z,sx,sy,sz,o){
+  const m=new THREE.Mesh(G[g],M(color,o));
+  m.position.set(x,y,z);
+  m.scale.set(sx,sy===undefined?sx:sy,sz===undefined?sx:sz);
+  m.castShadow=true;
+  return m;
+}
+
+// ---------- the meadow ----------
+const B=30;
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(160,160),M(0x86c67a));
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const field=new THREE.Mesh(new THREE.PlaneGeometry(B*2+2,B*2+2),M(0x9ad98a));
+field.rotation.x=-Math.PI/2;field.position.y=.02;field.receiveShadow=true;scene.add(field);
+const lawn=new THREE.Mesh(new THREE.CircleGeometry(16,40),M(0xa9e39a));
+lawn.rotation.x=-Math.PI/2;lawn.position.set(0,.04,2);lawn.receiveShadow=true;scene.add(lawn);
+
+function tree(x,z,s){
+  const t=new THREE.Group();t.position.set(x,0,z);
+  t.add(part('cyl',0x8a5a35,0,.9*s,0,.28*s,1.8*s,.28*s));
+  t.add(part('cone',0x2f8f55,0,2.4*s,0,1.3*s,2.2*s,1.3*s));
+  t.add(part('cone',0x3aa564,0,3.6*s,0,1*s,1.8*s,1*s));
+  scene.add(t);
+}
+for(let i=-38;i<=38;i+=4.6){
+  tree(i+rnd(-.8,.8),-B-3-rnd(0,2),rnd(.9,1.3));
+  tree(i+rnd(-.8,.8),B+3+rnd(0,2),rnd(.9,1.3));
+  tree(-B-3-rnd(0,2),i+rnd(-.8,.8),rnd(.9,1.3));
+  tree(B+3+rnd(0,2),i+rnd(-.8,.8),rnd(.9,1.3));
+}
+const FL=[0xff8fb3,0xffe066,0xffffff,0xb89cff];
+for(let i=0;i<90;i++){
+  const f=part('sph',pick(FL),rnd(-B,B),.12,rnd(-B,B),.12);f.castShadow=false;scene.add(f);
+}
+const ROCKS=[[-9,3,1.7],[10,5,1.5],[1,-6,1.9],[-14,-4,1.3],[14,-3,1.4],[-5,12,1.2],[7,13,1.3]];
+ROCKS.forEach(r=>{
+  const m=part('rock',0x9aa3a8,r[0],r[2]*.45,r[1],r[2],r[2]*.8,r[2]);
+  m.rotation.y=rnd(0,6);scene.add(m);
+});
+
+// ---------- eggs, creatures, hero, wild monster ----------
+const RAR=[
+  {name:'Common',cls:'common',col:0xbfeee4,spot:0x7fd6c2,glow:0x000000,val:1,hatch:6,pal:[0x7fd6c2,0x8fc7ff,0xffd37a,0xf7a8b8]},
+  {name:'Rare',cls:'rare',col:0xb99cff,spot:0xfff3a8,glow:0x4a22b0,val:3,hatch:8,pal:[0xa07bff,0x5fb0ff,0xff7ab8]},
+  {name:'Epic',cls:'epic',col:0xffd24a,spot:0xff6b3d,glow:0xc77800,val:8,hatch:10,pal:[0xffc933,0xff7a3d,0x45e0c1]}
+];
+const SP=[['Mochiblob','Pebblet','Bumbo'],['Zapkit','Glimmerfin','Cinderpup'],['Drakoodle','Solarex','Voidmoth']];
+
+function makeEgg(rar){
+  const R=RAR[rar],g=new THREE.Group();
+  g.add(part('sph',R.col,0,0,0,.42,.56,.42,{emissive:R.glow,emissiveIntensity:rar?.7:0}));
+  [[.3,.2,.26,.09],[-.28,-.1,.3,.08],[.05,.38,-.3,.07]].forEach(s=>g.add(part('sph',R.spot,s[0],s[1],s[2],s[3])));
+  return g;
+}
+
+function makeCreature(rar){
+  const g=new THREE.Group(),c=pick(RAR[rar].pal),belly=0xfff4dc,s=1+rar*.28,kind=Math.floor(Math.random()*4);
+  g.add(part('sph',c,0,.7*s,0,.7*s,.62*s,.7*s));
+  g.add(part('sph',belly,0,.55*s,.34*s,.44*s,.4*s,.28*s));
+  [-1,1].forEach(sd=>{
+    g.add(part('sph',0x1b1b2a,sd*.25*s,.92*s,.58*s,.09*s));
+    g.add(part('sph',0xffffff,sd*.25*s+.02,.96*s,.65*s,.035*s));
+    g.add(part('sph',c,sd*.3*s,.1,.15*s,.2*s,.12*s,.28*s));
+  });
+  [-1,1].forEach(sd=>{
+    if(kind===0){const e=part('cyl',c,sd*.3*s,1.5*s,0,.12*s,.5*s,.12*s);e.rotation.z=-sd*.22;g.add(e);}
+    if(kind===1){const h=part('cone',0xfff0c8,sd*.32*s,1.35*s,.05,.12*s,.4*s,.12*s);h.rotation.z=-sd*.35;g.add(h);}
+    if(kind===2){const f=part('sph',c,sd*.62*s,.7*s,0,.12*s,.3*s,.22*s);f.rotation.z=sd*.4;g.add(f);}
+    if(kind===3){const a=part('cyl',0x555a6a,sd*.2*s,1.45*s,0,.03*s,.4*s,.03*s);g.add(a);g.add(part('sph',0xffe066,sd*.2*s,1.7*s,0,.09*s));}
+  });
+  if(rar>=1)[-1,1].forEach(sd=>{const w=part('sph',0xffffff,sd*.72*s,1.0*s,-.2*s,.1*s,.34*s,.26*s,{emissive:0x444466});w.rotation.z=sd*.5;g.add(w);});
+  if(rar===2){
+    const halo=new THREE.Mesh(new THREE.TorusGeometry(.38*s,.06,6,20),M(0xffd24a,{emissive:0xffa800}));
+    halo.position.y=1.75*s;halo.rotation.x=Math.PI/2;g.add(halo);g.userData.halo=halo;
+  }
+  return g;
+}
+
+function makeHero(col){
+  const g=new THREE.Group(),dark=new THREE.Color(col).multiplyScalar(.72).getHex();
+  g.add(part('cyl',col,0,.55,0,.42,.7,.36));
+  g.add(part('sph',0xffe0bd,0,1.4,0,.5));
+  g.add(part('dome',col,0,1.46,0,.55,.5,.55));
+  g.add(part('box',dark,0,1.5,.5,.5,.08,.35));
+  [-1,1].forEach(s=>{
+    g.add(part('sph',0x22223a,s*.18,1.36,.44,.07));
+    g.add(part('sph',0xff9aa8,s*.3,1.22,.4,.08,.05,.05));
+  });
+  const arms=[-1,1].map(s=>{const a=part('sph',0xffe0bd,s*.55,.75,0,.15);g.add(a);return a;});
+  const feet=[-1,1].map(s=>{const f=part('box',dark,s*.2,.1,.08,.3,.2,.45);g.add(f);return f;});
+  g.userData={arms,feet};
+  return g;
+}
+
+function makeMonster(){
+  const g=new THREE.Group();
+  g.add(part('sph',0x8a2c52,0,1.1,0,1.1,1,1.1,{emissive:0x2a0510}));
+  for(let i=0;i<9;i++){
+    const a=i/9*Math.PI*2,sp=part('cone',0xffd166,Math.cos(a)*.95,1.55+(i%2)*.15,Math.sin(a)*.95,.2,.55,.2);
+    sp.rotation.z=-Math.cos(a)*.9;sp.rotation.x=Math.sin(a)*.9;g.add(sp);
+  }
+  [-1,1].forEach(s=>{
+    g.add(part('sph',0xfff2a8,s*.38,1.3,.92,.2,.22,.12));
+    g.add(part('sph',0x1b1020,s*.38,1.28,1.02,.09));
+    const br=part('box',0x2a0510,s*.38,1.62,.95,.36,.07,.07);br.rotation.z=s*.45;g.add(br);
+    g.add(part('cone',0xffffff,s*.3,.78,1.0,.08,.26,.08));
+  });
+  return g;
+}
+
+// ---------- particles (small reusable pool) ----------
+const pool=[];
+for(let i=0;i<100;i++){
+  const m=new THREE.Mesh(G.sph,new THREE.MeshBasicMaterial({color:0xffffff}));
+  m.visible=false;scene.add(m);pool.push({m,v:new THREE.Vector3(),life:0,max:1});
+}
+function burst(x,y,z,color,n,power){
+  let k=0;
+  for(const p of pool){
+    if(k>=n)break;if(p.life>0)continue;
+    p.life=p.max=rnd(.45,.9);p.m.visible=true;p.m.material.color.setHex(color);
+    p.m.position.set(x,y,z);
+    p.v.set(rnd(-1,1)*power,rnd(.6,1.4)*power,rnd(-1,1)*power);k++;
+  }
+}
+function updParticles(dt){
+  for(const p of pool){
+    if(p.life<=0)continue;
+    p.life-=dt;
+    if(p.life<=0){p.m.visible=false;continue;}
+    p.v.y-=14*dt;p.m.position.addScaledVector(p.v,dt);
+    p.m.scale.setScalar(.04+.14*(p.life/p.max));
+  }
+}
+
+// ---------- audio (starts after the first click) ----------
+let ac=null;
+function beep(f,d,type,v,slide){
+  if(!ac)return;
+  try{
+    const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;
+    o.type=type||'sine';o.frequency.setValueAtTime(f,t);
+    if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
+    g.gain.setValueAtTime(v||.08,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+    o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+d);
+  }catch(e){}
+}
+function toast(msg){
+  const box=$('toasts'),d=document.createElement('div');
+  d.className='toast';d.textContent=msg;box.appendChild(d);
+  while(box.children.length>3)box.firstChild.remove();
+  setTimeout(()=>d.remove(),2400);
+}
+
+// ---------- state ----------
+const TEAMS=[{name:'You',col:0x2f6fe4},{name:'Pip',col:0xe8782a},{name:'Moxie',col:0xd94c93}];
+const ROUND=180,SLOT_R=1.15,DASH_CD=1.5;
+const NESTS=[[0,22],[-22,-12],[22,-12]];
+let state='ready',tLeft=ROUND,clock=0;
+const eggs=[],monsters=[];
+
+const nests=NESTS.map((p,i)=>{
+  const g=new THREE.Group();g.position.set(p[0],0,p[1]);
+  g.add(part('cyl',0xe3c88a,0,.06,0,3.3,.12,3.3));
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(3.3,.28,8,28),M(0xb58b4c));
+  ring.rotation.x=Math.PI/2;ring.position.y=.2;ring.castShadow=true;g.add(ring);
+  g.add(part('cyl',0x6b4a2b,3.3,1.4,0,.08,2.8,.08));
+  g.add(part('box',TEAMS[i].col,3.85,2.4,0,1.1,.7,.06));
+  scene.add(g);
+  return {x:p[0],z:p[1],team:i,slots:[null,null,null],pets:[]};
+});
+const slotPos=(n,i)=>{const a=i/3*Math.PI*2+Math.PI/2;return [n.x+Math.cos(a)*SLOT_R,n.z+Math.sin(a)*SLOT_R];};
+const arrow=part('cone',0xffd24a,nests[0].x,4.2,nests[0].z,.7,1.3,.7,{emissive:0xb07a00});
+arrow.rotation.x=Math.PI;arrow.visible=false;scene.add(arrow);
+
+const ents=TEAMS.map((t,i)=>{
+  const hero=makeHero(t.col);scene.add(hero);
+  return {team:i,hero,x:0,z:0,vx:0,vz:0,fx:0,fz:-1,ang:0,carry:-1,carryMesh:null,stun:0,immune:0,
+          dashT:0,dashCd:0,wt:0,score:0,hatched:[0,0,0],ai:{goal:null,re:0}};
+});
+const player=ents[0];
+
+for(let i=0;i<3;i++){const m=makeMonster();scene.add(m);monsters.push({mesh:m,x:0,z:0,tx:0,tz:0,wt:0,stun:0,cool:0});}
+
+// ---------- helpers ----------
+function collide(o,rad){
+  o.x=clamp(o.x,-B,B);o.z=clamp(o.z,-B,B);
+  for(const r of ROCKS){
+    const dx=o.x-r[0],dz=o.z-r[1],d=Math.hypot(dx,dz),min=r[2]*.9+rad;
+    if(d<min&&d>.001){o.x=r[0]+dx/d*min;o.z=r[1]+dz/d*min;}
+  }
+}
+function addEgg(x,z,rar){
+  const mesh=makeEgg(rar);mesh.position.set(x,.55,z);scene.add(mesh);
+  const g={x,z,rar,mesh,t:rnd(0,6),noPick:0};eggs.push(g);return g;
+}
+function spawnEgg(){
+  for(let tries=0;tries<20;tries++){
+    const a=rnd(0,6.28),r=Math.sqrt(Math.random())*15,x=Math.cos(a)*r,z=2+Math.sin(a)*r;
+    if(ROCKS.some(k=>Math.hypot(x-k[0],z-k[1])<k[2]+1.4))continue;
+    if(eggs.some(e=>Math.hypot(x-e.x,z-e.z)<2))continue;
+    const q=Math.random();
+    addEgg(x,z,q<.08?2:q<.36?1:0);return;
+  }
+}
+function setCarry(e,rar){
+  if(e.carryMesh){e.hero.remove(e.carryMesh);e.carryMesh=null;}
+  e.carry=rar;
+  if(rar>=0){const m=makeEgg(rar);m.position.y=2.4;m.scale.setScalar(1.05);e.hero.add(m);e.carryMesh=m;}
+}
+function dropEgg(e){
+  if(e.carry<0)return;
+  const rar=e.carry,a=rnd(0,6.28);
+  setCarry(e,-1);
+  const g=addEgg(clamp(e.x+Math.cos(a)*1.7,-B,B),clamp(e.z+Math.sin(a)*1.7,-B,B),rar);
+  g.noPick=1.3;
+}
+function stun(o,t,msg){
+  o.stun=t;o.immune=t+.9;dropEgg(o);
+  burst(o.x,1.6,o.z,0xffe066,10,4);
+  if(o===player){beep(180,.25,'sawtooth',.06,80);if(msg)toast(msg);}
+}
+function dashHits(e){
+  for(const o of ents){
+    if(o===e||o.immune>0||o.stun>0)continue;
+    if(Math.hypot(o.x-e.x,o.z-e.z)<1.8){
+      stun(o,1.4,TEAMS[e.team].name+' tackled you!');
+      if(e===player){toast(o.carry<0?'Tackled '+TEAMS[o.team].name:'Egg dropped!');beep(240,.15,'square',.06,420);}
+    }
+  }
+  for(const m of monsters){
+    if(m.stun<=0&&Math.hypot(m.x-e.x,m.z-e.z)<2){
+      m.stun=2.4;burst(m.x,1.6,m.z,0xffd166,12,5);
+      if(e===player)beep(320,.15,'square',.06,520);
+    }
+  }
+}
+
+// ---------- one step of movement for any hero ----------
+function stepEnt(e,dt,mx,mz,wantDash,speed){
+  e.dashCd=Math.max(0,e.dashCd-dt);e.immune=Math.max(0,e.immune-dt);
+  const moving=mx!==0||mz!==0;
+  if(e.stun>0){
+    e.stun-=dt;e.vx*=.85;e.vz*=.85;
+    if(Math.random()<dt*6)burst(e.x,2.2,e.z,0xffe066,1,1.5);
+  }else{
+    if(moving){const l=Math.hypot(mx,mz);e.fx=mx/l;e.fz=mz/l;}
+    if(wantDash&&e.dashCd<=0&&e.dashT<=0){e.dashT=.22;e.dashCd=DASH_CD;if(e===player)beep(300,.18,'square',.05,640);}
+    if(e.dashT>0){e.dashT-=dt;e.vx=e.fx*17;e.vz=e.fz*17;dashHits(e);}
+    else{
+      const sp=speed*(e.carry>=0?.86:1),k=Math.min(1,dt*12);
+      e.vx+=(mx*sp-e.vx)*k;e.vz+=(mz*sp-e.vz)*k;
+    }
+  }
+  e.x+=e.vx*dt;e.z+=e.vz*dt;
+  collide(e,.55);
+  for(const o of ents){
+    if(o===e)continue;
+    const dx=e.x-o.x,dz=e.z-o.z,d=Math.hypot(dx,dz);
+    if(d<1&&d>.001){e.x+=dx/d*(1-d)*.5;e.z+=dz/d*(1-d)*.5;}
+  }
+}
+function animEnt(e,dt){
+  const sp=Math.hypot(e.vx,e.vz),h=e.hero,u=h.userData;
+  e.wt+=dt*(2+sp*1.5);
+  const sw=Math.sin(e.wt)*Math.min(1,sp/5);
+  u.feet[0].position.z=.08+sw*.3;u.feet[1].position.z=.08-sw*.3;
+  u.arms[0].position.z=-sw*.25;u.arms[1].position.z=sw*.25;
+  h.position.set(e.x,Math.abs(sw)*.12,e.z);
+  let d=Math.atan2(e.fx,e.fz)-e.ang;d=Math.atan2(Math.sin(d),Math.cos(d));
+  e.ang+=d*Math.min(1,dt*14);
+  h.rotation.y=e.ang;
+  h.rotation.z=e.stun>0?Math.sin(clock*28)*.22:0;
+  h.rotation.x=e.dashT>0?.35:0;
+  if(e.carryMesh){e.carryMesh.position.y=2.4+Math.sin(clock*6+e.team)*.08;e.carryMesh.rotation.y+=dt*2;}
+}
+
+// ---------- picking up, delivering and stealing eggs ----------
+function pickups(e){
+  if(e.carry>=0||e.stun>0)return;
+  for(let i=0;i<eggs.length;i++){
+    const g=eggs[i];
+    if(g.noPick>0||Math.hypot(g.x-e.x,g.z-e.z)>1.35)continue;
+    scene.remove(g.mesh);eggs.splice(i,1);setCarry(e,g.rar);
+    if(e===player){beep(660,.12,'triangle',.08,990);if(g.rar>0)toast(RAR[g.rar].name+' egg! Carry it to your nest.');}
+    return;
+  }
+}
+function nestLogic(e){
+  if(e.stun>0)return;
+  const own=nests[e.team];
+  if(e.carry>=0&&Math.hypot(e.x-own.x,e.z-own.z)<3){
+    const i=own.slots.findIndex(s=>!s);
+    if(i>=0){
+      const rar=e.carry,m=makeEgg(rar),p=slotPos(own,i);
+      setCarry(e,-1);m.position.set(p[0],.5,p[1]);scene.add(m);
+      own.slots[i]={rar,t:0,mesh:m};
+      if(e===player)beep(520,.1,'triangle',.07,780);
+    }
+  }
+  if(e.carry<0){
+    for(const n of nests){
+      if(n===own||Math.hypot(e.x-n.x,e.z-n.z)>2.6)continue;
+      const i=n.slots.findIndex(Boolean);
+      if(i<0)continue;
+      const s=n.slots[i];scene.remove(s.mesh);n.slots[i]=null;setCarry(e,s.rar);
+      if(e===player){toast('You swiped an egg from '+TEAMS[n.team].name+'!');beep(440,.2,'square',.06,880);}
+      else if(n.team===0){toast(TEAMS[e.team].name+' stole your egg! Chase them!');beep(220,.3,'sawtooth',.07,110);}
+      break;
+    }
+  }
+}
+function hatch(n,i){
+  const s=n.slots[i],e=ents[n.team],R=RAR[s.rar];
+  scene.remove(s.mesh);n.slots[i]=null;
+  e.score+=R.val;e.hatched[s.rar]++;
+  const m=makeCreature(s.rar),a=rnd(0,6.28),r=rnd(1.8,3);
+  m.position.set(n.x+Math.cos(a)*r,0,n.z+Math.sin(a)*r);m.scale.setScalar(.01);scene.add(m);
+  n.pets.push({m,tx:m.position.x,tz:m.position.z,wait:rnd(.5,2),age:0,ph:rnd(0,6)});
+  if(n.pets.length>14)scene.remove(n.pets.shift().m);
+  burst(n.x,1.2,n.z,R.col,s.rar===2?30:18,6);
+  if(n.team===0){toast('Hatched a '+pick(SP[s.rar])+'! +'+R.val);beep(s.rar===2?880:700,.3,'triangle',.09,s.rar===2?1500:1050);}
+}
+function updNests(dt,live){
+  for(const n of nests){
+    n.slots.forEach((s,i)=>{
+      if(!s)return;
+      if(live)s.t+=dt;
+      const R=RAR[s.rar],p=Math.min(1,s.t/R.hatch);
+      s.mesh.rotation.z=Math.sin(clock*13)*p*.4;
+      s.mesh.scale.setScalar(1+Math.sin(clock*9)*.05*p);
+      if(live&&s.t>=R.hatch)hatch(n,i);
+    });
+    for(const p of n.pets){
+      p.age+=dt;
+      const sc=Math.min(1,p.age/.4);p.m.scale.setScalar(1-Math.pow(1-sc,3));
+      if(p.m.userData.halo)p.m.userData.halo.rotation.z+=dt*2;
+      if(p.wait>0){p.wait-=dt;p.m.position.y=Math.abs(Math.sin(clock*2+p.ph))*.04;continue;}
+      const dx=p.tx-p.m.position.x,dz=p.tz-p.m.position.z,d=Math.hypot(dx,dz);
+      if(d<.2){
+        const a=rnd(0,6.28),r=rnd(1.6,3.1);
+        p.tx=n.x+Math.cos(a)*r;p.tz=n.z+Math.sin(a)*r;p.wait=rnd(1,3.5);continue;
+      }
+      p.m.position.x+=dx/d*1.5*dt;p.m.position.z+=dz/d*1.5*dt;
+      p.m.position.y=Math.abs(Math.sin(clock*9+p.ph))*.3;
+      p.m.rotation.y=Math.atan2(dx,dz);
+    }
+  }
+}
+
+// ---------- rival brains ----------
+function goalValid(a){
+  const g=a.goal;
+  if(!g)return false;
+  if(g.type==='egg')return eggs.includes(g.ref);
+  if(g.type==='steal')return g.ref.slots.some(Boolean);
+  return true;
+}
+function chooseGoal(e,a){
+  let best=null,bd=1e9;
+  for(const g of eggs){
+    if(g.noPick>0)continue;
+    const d=Math.hypot(g.x-e.x,g.z-e.z);
+    if(d<bd){bd=d;best=g;}
+  }
+  const victims=nests.filter(n=>n.team!==e.team&&n.slots.some(Boolean));
+  if(victims.length&&(!best||bd>9||Math.random()<.28)){
+    a.goal={type:'steal',ref:victims.find(n=>n.team===0&&Math.random()<.6)||pick(victims)};return;
+  }
+  if(best){a.goal={type:'egg',ref:best};return;}
+  a.goal={type:'wander',x:rnd(-10,10),z:rnd(-4,10)};
+}
+function aiMove(e,dt){
+  const a=e.ai,home=nests[e.team];
+  a.re-=dt;
+  if(Math.hypot(e.x-home.x,e.z-home.z)>5){
+    for(const m of monsters){
+      if(m.stun>0)continue;
+      const dx=e.x-m.x,dz=e.z-m.z,d=Math.hypot(dx,dz);
+      if(d<5.5)return [dx/d,dz/d,false];
+    }
+  }
+  let tx,tz;
+  if(e.carry>=0){tx=home.x;tz=home.z;}
+  else{
+    if(a.re<=0||!goalValid(a)){a.re=1.2;chooseGoal(e,a);}
+    const g=a.goal;
+    if(g.type==='wander'){tx=g.x;tz=g.z;}else{tx=g.ref.x;tz=g.ref.z;}
+  }
+  let dx=tx-e.x,dz=tz-e.z,d=Math.hypot(dx,dz),dash=false;
+  if(e.carry<0&&player.carry>=0&&player.immune<=0&&e.dashCd<=0){
+    const px=player.x-e.x,pz=player.z-e.z,pd=Math.hypot(px,pz);
+    if(pd<3.4&&Math.random()<dt*2.2){dx=px;dz=pz;d=pd;dash=true;}
+  }
+  if(d<.35)return [0,0,dash];
+  return [dx/d,dz/d,dash];
+}
+
+// ---------- wild Grumblers ----------
+function newMonsterTarget(m){
+  for(let i=0;i<12;i++){
+    const x=rnd(-24,24),z=rnd(-22,22);
+    if(nests.every(n=>Math.hypot(x-n.x,z-n.z)>9)){m.tx=x;m.tz=z;break;}
+  }
+  m.wt=rnd(3,6);
+}
+function updMonster(m,dt){
+  m.cool-=dt;
+  if(m.stun>0){
+    m.stun-=dt;m.mesh.rotation.z=Math.sin(clock*30)*.25;m.mesh.position.set(m.x,0,m.z);return;
+  }
+  m.mesh.rotation.z*=.8;
+  let tgt=null,bd=8;
+  if(m.cool<=0){
+    for(const e of ents){
+      if(e.stun>0||e.immune>0)continue;
+      const hn=nests[e.team];
+      if(Math.hypot(e.x-hn.x,e.z-hn.z)<5.5)continue;
+      const d=Math.hypot(e.x-m.x,e.z-m.z);
+      if(d<bd){bd=d;tgt=e;}
+    }
+  }
+  let sp=2.3,dx,dz;
+  if(tgt){
+    dx=tgt.x-m.x;dz=tgt.z-m.z;sp=4.6;
+    if(bd<1.45){stun(tgt,1.6,'A wild Grumbler bonked you!');m.cool=2.2;}
+  }else{
+    m.wt-=dt;
+    if(m.wt<=0||Math.hypot(m.tx-m.x,m.tz-m.z)<1)newMonsterTarget(m);
+    dx=m.tx-m.x;dz=m.tz-m.z;
+  }
+  const d=Math.hypot(dx,dz)||1;
+  m.x+=dx/d*sp*dt;m.z+=dz/d*sp*dt;collide(m,1);
+  m.mesh.rotation.y=Math.atan2(dx,dz);
+  m.mesh.position.set(m.x,Math.abs(Math.sin(clock*(tgt?12:6)))*.3,m.z);
+}
+
+// ---------- input: keyboard + drag-to-move joystick ----------
+const keys={};
+let jx=0,jz=0,dashQ=false,stickId=null,sx0=0,sy0=0;
+window.addEventListener('keydown',e=>{
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+  if(e.code==='Space'&&!e.repeat)dashQ=true;
+  keys[e.code]=true;
+});
+window.addEventListener('keyup',e=>{keys[e.code]=false;});
+const app=$('app'),stick=$('stick'),knob=$('knob'),dashBtn=$('dash');
+app.addEventListener('pointerdown',e=>{
+  if(state!=='play'||stickId!==null||e.target.closest('#dash,#overlay'))return;
+  const r=app.getBoundingClientRect();
+  if(e.clientX-r.left>r.width*.62&&e.pointerType==='touch')return;
+  stickId=e.pointerId;sx0=e.clientX;sy0=e.clientY;
+  stick.style.left=(sx0-r.left)+'px';stick.style.top=(sy0-r.top)+'px';
+  knob.style.transform='';stick.hidden=false;
+});
+app.addEventListener('pointermove',e=>{
+  if(e.pointerId!==stickId)return;
+  let dx=e.clientX-sx0,dz=e.clientY-sy0;
+  const d=Math.hypot(dx,dz),m=52;
+  if(d>m){dx*=m/d;dz*=m/d;}
+  jx=dx/m;jz=dz/m;
+  knob.style.transform='translate('+dx+'px,'+dz+'px)';
+});
+function endStick(e){
+  if(e.pointerId!==stickId)return;
+  stickId=null;jx=0;jz=0;stick.hidden=true;
+}
+app.addEventListener('pointerup',endStick);
+app.addEventListener('pointercancel',endStick);
+dashBtn.addEventListener('pointerdown',e=>{e.preventDefault();dashQ=true;});
+function readInput(){
+  let x=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+jx;
+  let z=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0)+jz;
+  const l=Math.hypot(x,z);
+  if(l>1){x/=l;z/=l;}
+  if(l<.12){x=0;z=0;}
+  return [x,z];
+}
+
+// ---------- HUD ----------
+const H={timer:$('timer'),chip:$('timerChip'),s:[$('sYou'),$('sPip'),$('sMoxie')],c:[$('cC'),$('cR'),$('cE')],carry:$('carry')};
+let carryKey=-2;
+const fmt=t=>{const s=Math.ceil(t);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+function updHud(){
+  H.timer.textContent=fmt(tLeft);
+  H.chip.classList.toggle('low',state==='play'&&tLeft<20);
+  ents.forEach((e,i)=>{H.s[i].textContent=e.score;});
+  player.hatched.forEach((n,i)=>{H.c[i].textContent=n;});
+  if(carryKey!==player.carry){
+    carryKey=player.carry;
+    H.carry.innerHTML=carryKey<0?'Hands free: grab an egg':'<i class="gem '+RAR[carryKey].cls+'"></i>Carrying a '+RAR[carryKey].name.toLowerCase()+' egg';
+  }
+  dashBtn.style.setProperty('--cd',String(Math.round(100*(1-player.dashCd/DASH_CD))));
+}
+
+// ---------- start, reset, end ----------
+function safeGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function safeSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function showStart(){
+  card.innerHTML='<h1>Egg Rush</h1><p class="tag">Steal eggs, hatch creatures, beat the rival trainers.</p>'+
+    '<ul><li>Carry eggs from the meadow to your blue nest. They hatch after a few seconds and score points.</li>'+
+    '<li>Colors show value: teal 1 point, purple 3, gold 8. Higher rarity takes longer to hatch.</li>'+
+    '<li>Walk into a rival nest to swipe an egg. Dash into rivals to make them drop theirs.</li>'+
+    '<li>Wild Grumblers bonk anyone away from a nest. A dash stuns them.</li></ul>'+
+    '<p class="keys">Move: WASD or arrow keys. Dash: Space. On touch, drag on the left side to move and tap Dash. Round lasts 3 minutes.</p>'+
+    '<button class="go" id="go" type="button">Start hatching</button>';
+  overlay.hidden=false;
+}
+function reset(){
+  eggs.forEach(g=>scene.remove(g.mesh));eggs.length=0;
+  nests.forEach(n=>{
+    n.slots.forEach((s,i)=>{if(s)scene.remove(s.mesh);n.slots[i]=null;});
+    n.pets.forEach(p=>scene.remove(p.m));n.pets.length=0;
+  });
+  ents.forEach((e,i)=>{
+    setCarry(e,-1);
+    e.x=nests[i].x*.7;e.z=nests[i].z*.7;e.vx=e.vz=0;e.stun=e.immune=e.dashT=e.dashCd=0;
+    e.score=0;e.hatched=[0,0,0];e.ai={goal:null,re:0};
+    e.fx=0;e.fz=-1;e.ang=Math.PI;
+  });
+  monsters.forEach(m=>{
+    m.x=rnd(-14,14);m.z=rnd(-8,8);m.stun=0;m.cool=1;newMonsterTarget(m);
+  });
+  for(let i=0;i<6;i++)spawnEgg();
+}
+let spawnT=0;
+function startGame(){
+  if(!ac){try{ac=new (window.AudioContext||window.webkitAudioContext)();}catch(e){ac=null;}}
+  reset();tLeft=ROUND;spawnT=0;state='play';carryKey=-2;dashQ=false;
+  overlay.hidden=true;
+  toast('Grab an egg and carry it to your blue nest!');
+}
+function endGame(){
+  state='end';stickId=null;jx=jz=0;stick.hidden=true;
+  const rank=ents.map((e,i)=>({i,n:TEAMS[i].name,s:e.score})).sort((a,b)=>b.s-a.s);
+  const top=rank[0].s,tie=rank.filter(r=>r.s===top).length>1,youTop=player.score===top;
+  const title=youTop?(tie?'Tied for first!':'You win!'):rank[0].n+' wins';
+  const best=Math.max(player.score,parseInt(safeGet('eggrush-best')||'0',10)||0);
+  safeSet('eggrush-best',String(best));
+  const cls=['you','pip','moxie'];
+  card.innerHTML='<h1>'+title+'</h1><p class="tag">Time is up. Final scores:</p>'+
+    '<div class="rank">'+rank.map(r=>'<div><i class="dot '+cls[r.i]+'"></i>'+r.n+'<b>'+r.s+'</b></div>').join('')+'</div>'+
+    '<p class="sum"><span class="lbl">You hatched</span><i class="gem common"></i><b>'+player.hatched[0]+'</b><i class="gem rare"></i><b>'+player.hatched[1]+'</b><i class="gem epic"></i><b>'+player.hatched[2]+'</b><span class="lbl">Best score</span><b>'+best+'</b></p>'+
+    '<button class="go" id="go" type="button">Play again</button>';
+  overlay.hidden=false;
+}
+card.addEventListener('click',e=>{if(e.target.closest('#go'))startGame();});
+
+// ---------- main loop ----------
+const look=new THREE.Vector3(0,0,0),want=new THREE.Vector3(),lt=new THREE.Vector3();
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(.05,(now-last)/1000);last=now;clock+=dt;
+  const live=state==='play';
+  if(live){
+    tLeft-=dt;
+    if(tLeft<=0){tLeft=0;endGame();}
+    const mv=readInput();
+    stepEnt(player,dt,mv[0],mv[1],dashQ,7.2);dashQ=false;
+    for(let i=1;i<3;i++){const m=aiMove(ents[i],dt);stepEnt(ents[i],dt,m[0],m[1],m[2],6.3);}
+    ents.forEach(e=>{pickups(e);nestLogic(e);});
+    monsters.forEach(m=>updMonster(m,dt));
+    spawnT-=dt;
+    if(spawnT<=0){spawnT=2.4;if(eggs.length<8)spawnEgg();}
+  }
+  ents.forEach(e=>animEnt(e,dt));
+  if(!live)monsters.forEach(m=>{m.mesh.position.set(m.x,Math.abs(Math.sin(clock*3))*.1,m.z);});
+  for(const g of eggs){
+    g.t+=dt;if(g.noPick>0)g.noPick-=dt;
+    g.mesh.position.y=.6+Math.sin(g.t*3)*.12;g.mesh.rotation.y+=dt*1.5;
+  }
+  updNests(dt,live);updParticles(dt);
+  arrow.visible=live&&player.carry>=0;
+  if(arrow.visible)arrow.position.y=4.2+Math.sin(clock*7)*.4;
+  // camera
+  const portrait=camera.aspect<.85,k=portrait?1.45:1;
+  if(live||state==='end'){
+    want.set(player.x*.9,15*k,player.z+13*k);lt.set(player.x*.9,0,player.z-1);
+  }else{
+    const a=clock*.12;want.set(Math.sin(a)*36,24,Math.cos(a)*36+2);lt.set(0,0,2);
+  }
+  const f=1-Math.exp(-dt*4);
+  camera.position.lerp(want,f);look.lerp(lt,f);camera.lookAt(look);
+  updHud();
+  renderer.render(scene,camera);
+}
+reset();showStart();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
