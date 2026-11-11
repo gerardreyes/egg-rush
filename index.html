@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Egg Rush</title>
+<meta name="author" content="Gerard Reyes">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
@@ -16,7 +17,7 @@
   --body:'Nunito',system-ui,sans-serif; --display:'Fredoka','Nunito',system-ui,sans-serif;
 }
 html,body{height:100%}
-body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 #app{position:relative;height:100%;overflow:hidden;background:var(--sky)}
 #stage{position:absolute;inset:0}
 #stage canvas{display:block;width:100%;height:100%}
@@ -52,10 +53,27 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hid
 .rank div:first-child{background:#fff0bf}
 .rank b{margin-left:auto;font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums}
 .sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;font-size:14px;margin:0 0 16px}
+.credit{margin:12px 0 0;text-align:center;font-size:12px;font-weight:800;opacity:.6;letter-spacing:.02em}
+#credit{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;padding:3px 9px;border-radius:10px;background:rgba(255,250,240,.82);color:var(--ink);font-size:11px;font-weight:800;line-height:1.25;white-space:nowrap;pointer-events:none}
+.dlabel{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.65;margin:0 0 6px}
+.diff{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 8px}
+.diff button{font-family:var(--display);font-size:15px;font-weight:600;padding:9px 2px;border:2.5px solid var(--ink);border-radius:12px;background:#fff;color:var(--ink);cursor:pointer;box-shadow:0 3px 0 var(--ink)}
+.diff button[aria-pressed="true"]{background:var(--gold)}
+.diff button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.diff button:focus-visible{outline:3px solid var(--you);outline-offset:2px}
+.diff-note{font-size:13px;font-weight:600;opacity:.8;margin:0 0 14px;min-height:2.6em;line-height:1.3}
+#hint{position:absolute;left:calc(26px + env(safe-area-inset-left,0px));bottom:30px;width:96px;height:96px;border-radius:50%;border:3px dashed rgba(31,47,44,.4);background:rgba(255,255,255,.18);pointer-events:none;display:none}
+@media (pointer:coarse){#hint{display:block}#dash{width:96px;height:96px;bottom:28px}#toasts{bottom:150px}}
 @keyframes toast{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
 @keyframes pulse{to{background:#ffb8ab}}
 @media (prefers-reduced-motion:reduce){.toast,#timerChip.low{animation:none}}
-@media (max-width:480px){.card h1{font-size:36px}}
+@media (max-width:480px){
+  .card h1{font-size:34px}.card{padding:18px 16px 16px}.card ul{font-size:14px}
+  .chip{padding:4px 8px;font-size:12px;gap:5px;border-radius:12px}.chip b{font-size:16px}
+  #timerChip b{font-size:18px}.lbl{font-size:10px}#hud{gap:6px}.row{gap:6px}
+  .diff button{font-size:14px}
+}
+@media (max-height:520px){.card{padding:12px 16px}.card h1{font-size:28px}.card .tag{margin-bottom:8px}.card ul{font-size:12.5px;gap:3px;margin-bottom:8px}.card .keys{margin-bottom:8px}.go{padding:7px 18px;font-size:19px}.diff button{padding:6px 2px}}
 </style>
 <style>html,body{margin:0;padding:0}[hidden]{display:none!important}img{max-width:100%}</style>
 </head>
@@ -78,6 +96,8 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);overflow:hid
   </div>
   <div id="toasts"></div>
   <div id="stick" hidden><div id="knob"></div></div>
+  <div id="hint" hidden></div>
+  <div id="credit"><span>Made by Gerard Reyes</span><span>with Claude Fable 5.2</span></div>
   <button id="dash" type="button">Dash</button>
   <div id="overlay"><div class="card" id="card"></div></div>
 </div>
@@ -90,10 +110,11 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const host=$('stage'), card=$('card'), overlay=$('overlay');
+const COARSE=!!(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches);
 let renderer;
-try{renderer=new THREE.WebGLRenderer({antialias:true});}
+try{renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});}
 catch(err){card.innerHTML='<h1>Egg Rush</h1><p class="tag">This browser could not start 3D graphics (WebGL). Try another browser or device.</p>';return;}
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,COARSE?1.5:2));
 renderer.shadowMap.enabled=true;
 host.appendChild(renderer.domElement);
 
@@ -102,9 +123,9 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(SKY);
 scene.fog=new THREE.Fog(SKY,48,100);
 const camera=new THREE.PerspectiveCamera(48,1,.1,200);
-scene.add(new THREE.HemisphereLight(0xffffff,0x6aa56a,.95));
-const sun=new THREE.DirectionalLight(0xfff0cf,.85);
-sun.position.set(18,34,12);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+scene.add(new THREE.HemisphereLight(0xffffff,0x6aa56a,.6));
+const sun=new THREE.DirectionalLight(0xfff0cf,.75);
+sun.position.set(18,34,12);sun.castShadow=true;sun.shadow.mapSize.set(COARSE?512:1024,COARSE?512:1024);
 Object.assign(sun.shadow.camera,{left:-42,right:42,top:42,bottom:-42,near:1,far:90});
 scene.add(sun);
 function resize(){
@@ -279,10 +300,17 @@ function toast(msg){
 
 // ---------- state ----------
 const TEAMS=[{name:'You',col:0x2f6fe4},{name:'Pip',col:0xe8782a},{name:'Moxie',col:0xd94c93}];
-const ROUND=180,SLOT_R=1.15,DASH_CD=1.5;
+const ROUND=180,SLOT_R=1.6,DASH_CD=1.5,MAX_BAG=5,SLOTS=6;
 const NESTS=[[0,22],[-22,-12],[22,-12]];
 let state='ready',tLeft=ROUND,clock=0;
 const eggs=[],monsters=[];
+const DIFFS={
+  easy:{name:'Easy',speed:4.6,think:2.2,stealP:.08,stealPlayer:.15,tackle:0,tackleRange:2.5,defend:false,flee:3.5,greedy:false,stunMul:1.5,blunder:.45,bag:1,note:'Slow rivals that wander off and rarely fight back.'},
+  normal:{name:'Normal',speed:6.3,think:1.2,stealP:.28,stealPlayer:.6,tackle:2.2,tackleRange:3.4,defend:false,flee:5.5,greedy:false,stunMul:1,blunder:.08,bag:2,note:'Rivals hunt eggs and sometimes raid your nest.'},
+  hard:{name:'Hard',speed:7.1,think:.6,stealP:.5,stealPlayer:.75,tackle:4.5,tackleRange:4.5,defend:true,flee:7,greedy:true,stunMul:.8,blunder:0,bag:3,note:'Rivals chase rare eggs, guard their nests and tackle you on sight.'},
+  brutal:{name:'Brutal',speed:7.5,think:.3,stealP:.75,stealPlayer:.9,tackle:8,tackleRange:5.5,defend:true,flee:7,greedy:true,stunMul:.6,blunder:0,bag:4,note:'Faster than you and relentless. Expect to be hunted.'}
+};
+let diff=DIFFS.normal;
 
 const nests=NESTS.map((p,i)=>{
   const g=new THREE.Group();g.position.set(p[0],0,p[1]);
@@ -292,15 +320,15 @@ const nests=NESTS.map((p,i)=>{
   g.add(part('cyl',0x6b4a2b,3.3,1.4,0,.08,2.8,.08));
   g.add(part('box',TEAMS[i].col,3.85,2.4,0,1.1,.7,.06));
   scene.add(g);
-  return {x:p[0],z:p[1],team:i,slots:[null,null,null],pets:[]};
+  return {x:p[0],z:p[1],team:i,slots:new Array(SLOTS).fill(null),pets:[]};
 });
-const slotPos=(n,i)=>{const a=i/3*Math.PI*2+Math.PI/2;return [n.x+Math.cos(a)*SLOT_R,n.z+Math.sin(a)*SLOT_R];};
+const slotPos=(n,i)=>{const a=i/SLOTS*Math.PI*2+Math.PI/2;return [n.x+Math.cos(a)*SLOT_R,n.z+Math.sin(a)*SLOT_R];};
 const arrow=part('cone',0xffd24a,nests[0].x,4.2,nests[0].z,.7,1.3,.7,{emissive:0xb07a00});
 arrow.rotation.x=Math.PI;arrow.visible=false;scene.add(arrow);
 
 const ents=TEAMS.map((t,i)=>{
   const hero=makeHero(t.col);scene.add(hero);
-  return {team:i,hero,x:0,z:0,vx:0,vz:0,fx:0,fz:-1,ang:0,carry:-1,carryMesh:null,stun:0,immune:0,
+  return {team:i,hero,x:0,z:0,vx:0,vz:0,fx:0,fz:-1,ang:0,bag:[],carryMesh:null,stealCd:0,stun:0,immune:0,
           dashT:0,dashCd:0,wt:0,score:0,hatched:[0,0,0],ai:{goal:null,re:0}};
 });
 const player=ents[0];
@@ -328,19 +356,31 @@ function spawnEgg(){
     addEgg(x,z,q<.08?2:q<.36?1:0);return;
   }
 }
-function setCarry(e,rar){
+function syncBag(e){
   if(e.carryMesh){e.hero.remove(e.carryMesh);e.carryMesh=null;}
-  e.carry=rar;
-  if(rar>=0){const m=makeEgg(rar);m.position.y=2.4;m.scale.setScalar(1.05);e.hero.add(m);e.carryMesh=m;}
+  if(!e.bag.length)return;
+  const g=new THREE.Group();
+  e.bag.forEach((rar,i)=>{
+    const m=makeEgg(rar);m.scale.setScalar(.72);
+    m.position.set(i%2?.14:-.14,2.35+i*.62,0);g.add(m);
+  });
+  e.hero.add(g);e.carryMesh=g;
 }
+const bagSpeed=e=>Math.max(.5,1-.08*e.bag.length);
+const bagValue=e=>e.bag.reduce((s,r)=>s+RAR[r].val,0);
 function dropEgg(e){
-  if(e.carry<0)return;
-  const rar=e.carry,a=rnd(0,6.28);
-  setCarry(e,-1);
-  const g=addEgg(clamp(e.x+Math.cos(a)*1.7,-B,B),clamp(e.z+Math.sin(a)*1.7,-B,B),rar);
-  g.noPick=1.3;
+  const n=e.bag.length;
+  if(!n)return;
+  const rars=e.bag.slice(),a0=rnd(0,6.28);
+  e.bag=[];syncBag(e);
+  rars.forEach((rar,i)=>{
+    const a=a0+i/n*Math.PI*2,r=1.7+Math.random()*.9;
+    const g=addEgg(clamp(e.x+Math.cos(a)*r,-B,B),clamp(e.z+Math.sin(a)*r,-B,B),rar);
+    g.noPick=1.3;
+  });
 }
 function stun(o,t,msg){
+  if(o!==player)t*=diff.stunMul;
   o.stun=t;o.immune=t+.9;dropEgg(o);
   burst(o.x,1.6,o.z,0xffe066,10,4);
   if(o===player){beep(180,.25,'sawtooth',.06,80);if(msg)toast(msg);}
@@ -349,8 +389,9 @@ function dashHits(e){
   for(const o of ents){
     if(o===e||o.immune>0||o.stun>0)continue;
     if(Math.hypot(o.x-e.x,o.z-e.z)<1.8){
+      const had=o.bag.length;
       stun(o,1.4,TEAMS[e.team].name+' tackled you!');
-      if(e===player){toast(o.carry<0?'Tackled '+TEAMS[o.team].name:'Egg dropped!');beep(240,.15,'square',.06,420);}
+      if(e===player){toast(had?'Tackled '+TEAMS[o.team].name+'! '+had+' egg'+(had>1?'s':'')+' dropped':'Tackled '+TEAMS[o.team].name);beep(240,.15,'square',.06,420);}
     }
   }
   for(const m of monsters){
@@ -363,7 +404,7 @@ function dashHits(e){
 
 // ---------- one step of movement for any hero ----------
 function stepEnt(e,dt,mx,mz,wantDash,speed){
-  e.dashCd=Math.max(0,e.dashCd-dt);e.immune=Math.max(0,e.immune-dt);
+  e.dashCd=Math.max(0,e.dashCd-dt);e.immune=Math.max(0,e.immune-dt);e.stealCd=Math.max(0,e.stealCd-dt);
   const moving=mx!==0||mz!==0;
   if(e.stun>0){
     e.stun-=dt;e.vx*=.85;e.vz*=.85;
@@ -373,7 +414,7 @@ function stepEnt(e,dt,mx,mz,wantDash,speed){
     if(wantDash&&e.dashCd<=0&&e.dashT<=0){e.dashT=.22;e.dashCd=DASH_CD;if(e===player)beep(300,.18,'square',.05,640);}
     if(e.dashT>0){e.dashT-=dt;e.vx=e.fx*17;e.vz=e.fz*17;dashHits(e);}
     else{
-      const sp=speed*(e.carry>=0?.86:1),k=Math.min(1,dt*12);
+      const sp=speed*bagSpeed(e),k=Math.min(1,dt*12);
       e.vx+=(mx*sp-e.vx)*k;e.vz+=(mz*sp-e.vz)*k;
     }
   }
@@ -397,38 +438,53 @@ function animEnt(e,dt){
   h.rotation.y=e.ang;
   h.rotation.z=e.stun>0?Math.sin(clock*28)*.22:0;
   h.rotation.x=e.dashT>0?.35:0;
-  if(e.carryMesh){e.carryMesh.position.y=2.4+Math.sin(clock*6+e.team)*.08;e.carryMesh.rotation.y+=dt*2;}
+  if(e.carryMesh){const n=e.bag.length;e.carryMesh.position.y=Math.sin(clock*6+e.team)*.05;e.carryMesh.rotation.z=Math.sin(clock*7+e.team)*.025*n;e.carryMesh.rotation.y+=dt*2;}
 }
 
 // ---------- picking up, delivering and stealing eggs ----------
 function pickups(e){
-  if(e.carry>=0||e.stun>0)return;
+  if(e.bag.length>=MAX_BAG||e.stun>0)return;
   for(let i=0;i<eggs.length;i++){
     const g=eggs[i];
     if(g.noPick>0||Math.hypot(g.x-e.x,g.z-e.z)>1.35)continue;
-    scene.remove(g.mesh);eggs.splice(i,1);setCarry(e,g.rar);
-    if(e===player){beep(660,.12,'triangle',.08,990);if(g.rar>0)toast(RAR[g.rar].name+' egg! Carry it to your nest.');}
+    scene.remove(g.mesh);eggs.splice(i,1);e.bag.push(g.rar);syncBag(e);
+    if(e===player){
+      beep(560+e.bag.length*90,.12,'triangle',.08,900+e.bag.length*100);
+      if(e.bag.length===MAX_BAG)toast('Bag full! Get home before you get tackled.');
+      else if(g.rar>0)toast(RAR[g.rar].name+' egg! '+e.bag.length+'/'+MAX_BAG+' in your bag.');
+    }
     return;
   }
 }
-function nestLogic(e){
+function nestLogic(e,dt){
   if(e.stun>0)return;
   const own=nests[e.team];
-  if(e.carry>=0&&Math.hypot(e.x-own.x,e.z-own.z)<3){
-    const i=own.slots.findIndex(s=>!s);
-    if(i>=0){
-      const rar=e.carry,m=makeEgg(rar),p=slotPos(own,i);
-      setCarry(e,-1);m.position.set(p[0],.5,p[1]);scene.add(m);
-      own.slots[i]={rar,t:0,mesh:m};
-      if(e===player)beep(520,.1,'triangle',.07,780);
+  if(e.bag.length&&Math.hypot(e.x-own.x,e.z-own.z)<3){
+    const order=e.bag.slice().sort((a,b)=>b-a);
+    let placed=0;
+    for(const rar of order){
+      const i=own.slots.findIndex(s=>!s);
+      if(i<0)break;
+      const m=makeEgg(rar),p=slotPos(own,i);
+      m.position.set(p[0],.5,p[1]);scene.add(m);
+      own.slots[i]={rar,t:0,mesh:m};placed++;
+      e.bag.splice(e.bag.indexOf(rar),1);
+    }
+    if(placed){
+      syncBag(e);
+      if(e===player){
+        beep(520,.1,'triangle',.07,780);
+        if(e.bag.length)toast('Nest is full. '+e.bag.length+' egg'+(e.bag.length>1?'s':'')+' still in your bag.');
+      }
     }
   }
-  if(e.carry<0){
+  if(e.bag.length<MAX_BAG&&e.stealCd<=0){
     for(const n of nests){
       if(n===own||Math.hypot(e.x-n.x,e.z-n.z)>2.6)continue;
       const i=n.slots.findIndex(Boolean);
       if(i<0)continue;
-      const s=n.slots[i];scene.remove(s.mesh);n.slots[i]=null;setCarry(e,s.rar);
+      const s=n.slots[i];scene.remove(s.mesh);n.slots[i]=null;
+      e.bag.push(s.rar);syncBag(e);e.stealCd=.7;
       if(e===player){toast('You swiped an egg from '+TEAMS[n.team].name+'!');beep(440,.2,'square',.06,880);}
       else if(n.team===0){toast(TEAMS[e.team].name+' stole your egg! Chase them!');beep(220,.3,'sawtooth',.07,110);}
       break;
@@ -474,49 +530,72 @@ function updNests(dt,live){
 }
 
 // ---------- rival brains ----------
+const nearMonster=(x,z,r)=>monsters.some(m=>m.stun<=0&&Math.hypot(m.x-x,m.z-z)<r);
 function goalValid(a){
   const g=a.goal;
   if(!g)return false;
-  if(g.type==='egg')return eggs.includes(g.ref);
+  if(g.type==='egg')return eggs.includes(g.ref)&&!nearMonster(g.ref.x,g.ref.z,3);
   if(g.type==='steal')return g.ref.slots.some(Boolean);
   return true;
 }
+function eggScore(g,e){
+  const d=Math.hypot(g.x-e.x,g.z-e.z);
+  return diff.greedy?(RAR[g.rar].val+1)/(d+4):1/(d+.1);
+}
 function chooseGoal(e,a){
-  let best=null,bd=1e9;
+  const D=diff;
+  if(Math.random()<D.blunder){a.goal={type:'wander',x:rnd(-14,14),z:rnd(-8,14)};return;}
+  let best=null,bs=-1;
   for(const g of eggs){
-    if(g.noPick>0)continue;
-    const d=Math.hypot(g.x-e.x,g.z-e.z);
-    if(d<bd){bd=d;best=g;}
+    if(g.noPick>0||nearMonster(g.x,g.z,3.5))continue;
+    const s=eggScore(g,e);
+    if(s>bs){bs=s;best=g;}
   }
+  const bd=best?Math.hypot(best.x-e.x,best.z-e.z):1e9;
   const victims=nests.filter(n=>n.team!==e.team&&n.slots.some(Boolean));
-  if(victims.length&&(!best||bd>9||Math.random()<.28)){
-    a.goal={type:'steal',ref:victims.find(n=>n.team===0&&Math.random()<.6)||pick(victims)};return;
+  if(victims.length&&(!best||(bd>9&&Math.random()<.6)||Math.random()<D.stealP)){
+    const pn=victims.find(n=>n.team===0);
+    a.goal={type:'steal',ref:(pn&&Math.random()<D.stealPlayer)?pn:pick(victims)};return;
   }
   if(best){a.goal={type:'egg',ref:best};return;}
-  a.goal={type:'wander',x:rnd(-10,10),z:rnd(-4,10)};
+  const hn=nests[e.team];
+  a.goal={type:'wander',x:hn.x*.75+rnd(-3,3),z:hn.z*.75+rnd(-3,3)};
 }
 function aiMove(e,dt){
-  const a=e.ai,home=nests[e.team];
+  const a=e.ai,D=diff,home=nests[e.team];
   a.re-=dt;
-  if(Math.hypot(e.x-home.x,e.z-home.z)>5){
+  const px=player.x-e.x,pz=player.z-e.z,pd=Math.hypot(px,pz);
+  if(e.bag.length>0&&Math.hypot(e.x-home.x,e.z-home.z)>5){
     for(const m of monsters){
       if(m.stun>0)continue;
       const dx=e.x-m.x,dz=e.z-m.z,d=Math.hypot(dx,dz);
-      if(d<5.5)return [dx/d,dz/d,false];
+      if(d<D.flee){
+        const hx=home.x-e.x,hz=home.z-e.z,hd=Math.hypot(hx,hz)||1;
+        const vx=dx/d+.9*hx/hd,vz=dz/d+.9*hz/hd,l=Math.hypot(vx,vz)||1;
+        return [vx/l,vz/l,false];
+      }
     }
   }
-  let tx,tz;
-  if(e.carry>=0){tx=home.x;tz=home.z;}
-  else{
-    if(a.re<=0||!goalValid(a)){a.re=1.2;chooseGoal(e,a);}
+  let tx,tz,chase=false;
+  const n=e.bag.length;
+  let goHome=false;
+  if(n>0&&home.slots.some(s=>!s)){
+    goHome=true;
+    if(n<D.bag&&n<MAX_BAG){for(const g of eggs){if(g.noPick<=0&&Math.hypot(g.x-e.x,g.z-e.z)<10){goHome=false;break;}}}
+  }
+  if(n>=MAX_BAG)goHome=true;
+  if(goHome){tx=home.x;tz=home.z;}
+  else if(D.defend&&n===0&&player.stun<=0&&player.immune<=0&&home.slots.some(Boolean)&&Math.hypot(player.x-home.x,player.z-home.z)<6){
+    tx=player.x;tz=player.z;chase=true;
+  }else{
+    if(a.re<=0||!goalValid(a)){a.re=D.think;chooseGoal(e,a);}
     const g=a.goal;
     if(g.type==='wander'){tx=g.x;tz=g.z;}else{tx=g.ref.x;tz=g.ref.z;}
   }
   let dx=tx-e.x,dz=tz-e.z,d=Math.hypot(dx,dz),dash=false;
-  if(e.carry<0&&player.carry>=0&&player.immune<=0&&e.dashCd<=0){
-    const px=player.x-e.x,pz=player.z-e.z,pd=Math.hypot(px,pz);
-    if(pd<3.4&&Math.random()<dt*2.2){dx=px;dz=pz;d=pd;dash=true;}
-  }
+  if(chase&&pd<3.2&&e.dashCd<=0)dash=true;
+  else if(n<=1&&e.dashCd<=0&&player.immune<=0&&D.tackle>0&&player.bag.length>0&&pd<D.tackleRange&&Math.random()<dt*D.tackle*(1+.3*player.bag.length)){dx=px;dz=pz;d=pd;dash=true;}
+  else if(n>0&&D.defend&&e.dashCd<=0&&player.stun<=0&&pd<3&&Math.random()<dt*4)dash=true;
   if(d<.35)return [0,0,dash];
   return [dx/d,dz/d,dash];
 }
@@ -538,11 +617,11 @@ function updMonster(m,dt){
   let tgt=null,bd=8;
   if(m.cool<=0){
     for(const e of ents){
-      if(e.stun>0||e.immune>0)continue;
+      if(e.stun>0||e.immune>0||!e.bag.length)continue;
       const hn=nests[e.team];
       if(Math.hypot(e.x-hn.x,e.z-hn.z)<5.5)continue;
       const d=Math.hypot(e.x-m.x,e.z-m.z);
-      if(d<bd){bd=d;tgt=e;}
+      if(d<bd&&d<4+1.8*e.bag.length){bd=d;tgt=e;}
     }
   }
   let sp=2.3,dx,dz;
@@ -569,7 +648,8 @@ window.addEventListener('keydown',e=>{
   keys[e.code]=true;
 });
 window.addEventListener('keyup',e=>{keys[e.code]=false;});
-const app=$('app'),stick=$('stick'),knob=$('knob'),dashBtn=$('dash');
+const app=$('app'),stick=$('stick'),knob=$('knob'),dashBtn=$('dash'),hint=$('hint');
+document.addEventListener('contextmenu',e=>e.preventDefault());
 app.addEventListener('pointerdown',e=>{
   if(state!=='play'||stickId!==null||e.target.closest('#dash,#overlay'))return;
   const r=app.getBoundingClientRect();
@@ -604,16 +684,18 @@ function readInput(){
 
 // ---------- HUD ----------
 const H={timer:$('timer'),chip:$('timerChip'),s:[$('sYou'),$('sPip'),$('sMoxie')],c:[$('cC'),$('cR'),$('cE')],carry:$('carry')};
-let carryKey=-2;
+let carryKey='';
 const fmt=t=>{const s=Math.ceil(t);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
 function updHud(){
   H.timer.textContent=fmt(tLeft);
   H.chip.classList.toggle('low',state==='play'&&tLeft<20);
   ents.forEach((e,i)=>{H.s[i].textContent=e.score;});
   player.hatched.forEach((n,i)=>{H.c[i].textContent=n;});
-  if(carryKey!==player.carry){
-    carryKey=player.carry;
-    H.carry.innerHTML=carryKey<0?'Hands free: grab an egg':'<i class="gem '+RAR[carryKey].cls+'"></i>Carrying a '+RAR[carryKey].name.toLowerCase()+' egg';
+  const bagKey=player.bag.join(',');
+  if(carryKey!==bagKey){
+    carryKey=bagKey;
+    const n=player.bag.length;
+    H.carry.innerHTML=n?player.bag.map(r=>'<i class="gem '+RAR[r].cls+'"></i>').join('')+n+'/'+MAX_BAG+' · worth '+bagValue(player)+' · '+Math.round((1-bagSpeed(player))*100)+'% slower':'Hands free';
   }
   dashBtn.style.setProperty('--cd',String(Math.round(100*(1-player.dashCd/DASH_CD))));
 }
@@ -621,14 +703,27 @@ function updHud(){
 // ---------- start, reset, end ----------
 function safeGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function safeSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const dkey=()=>Object.keys(DIFFS).find(k=>DIFFS[k]===diff);
+function setDiff(k){
+  if(!DIFFS[k])return;
+  diff=DIFFS[k];safeSet('eggrush-diff',k);
+  card.querySelectorAll('[data-d]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.d===k)));
+  const n=$('dnote');if(n)n.textContent=diff.note;
+}
+function diffPicker(){
+  return '<p class="dlabel">Rival difficulty</p><div class="diff">'+
+    Object.keys(DIFFS).map(k=>'<button type="button" data-d="'+k+'" aria-pressed="'+(DIFFS[k]===diff)+'">'+DIFFS[k].name+'</button>').join('')+
+    '</div><p class="diff-note" id="dnote">'+diff.note+'</p>';
+}
 function showStart(){
+  const keys=COARSE?'Drag on the left side of the screen to move. Tap Dash to tackle and stun. Round lasts 3 minutes.':'Move: WASD or arrow keys. Dash: Space. Round lasts 3 minutes.';
   card.innerHTML='<h1>Egg Rush</h1><p class="tag">Steal eggs, hatch creatures, beat the rival trainers.</p>'+
-    '<ul><li>Carry eggs from the meadow to your blue nest. They hatch after a few seconds and score points.</li>'+
+    '<ul><li>Carry up to 5 eggs to your blue nest. Every egg slows you down and a tackle makes you drop them all, so big hauls are risky.</li>'+
     '<li>Colors show value: teal 1 point, purple 3, gold 8. Higher rarity takes longer to hatch.</li>'+
     '<li>Walk into a rival nest to swipe an egg. Dash into rivals to make them drop theirs.</li>'+
-    '<li>Wild Grumblers bonk anyone away from a nest. A dash stuns them.</li></ul>'+
-    '<p class="keys">Move: WASD or arrow keys. Dash: Space. On touch, drag on the left side to move and tap Dash. Round lasts 3 minutes.</p>'+
-    '<button class="go" id="go" type="button">Start hatching</button>';
+    '<li>Wild Grumblers sniff out egg carriers. The bigger your bag, the farther they notice you. Nests are safe. A dash stuns them.</li></ul>'+
+    '<p class="keys">'+keys+'</p>'+diffPicker()+
+    '<button class="go" id="go" type="button">Start hatching</button>'+'<p class="credit">Made by Gerard Reyes with Claude Fable 5.2</p>';
   overlay.hidden=false;
 }
 function reset(){
@@ -638,7 +733,7 @@ function reset(){
     n.pets.forEach(p=>scene.remove(p.m));n.pets.length=0;
   });
   ents.forEach((e,i)=>{
-    setCarry(e,-1);
+    e.bag=[];syncBag(e);e.stealCd=0;
     e.x=nests[i].x*.7;e.z=nests[i].z*.7;e.vx=e.vz=0;e.stun=e.immune=e.dashT=e.dashCd=0;
     e.score=0;e.hatched=[0,0,0];e.ai={goal:null,re:0};
     e.fx=0;e.fz=-1;e.ang=Math.PI;
@@ -651,25 +746,31 @@ function reset(){
 let spawnT=0;
 function startGame(){
   if(!ac){try{ac=new (window.AudioContext||window.webkitAudioContext)();}catch(e){ac=null;}}
-  reset();tLeft=ROUND;spawnT=0;state='play';carryKey=-2;dashQ=false;
+  if(ac&&ac.state==='suspended'){try{ac.resume();}catch(e){}}
+  reset();tLeft=ROUND;spawnT=0;state='play';carryKey='x';dashQ=false;
   overlay.hidden=true;
-  toast('Grab an egg and carry it to your blue nest!');
+  toast(diff.name+' rivals. Grab an egg and carry it to your blue nest!');
 }
 function endGame(){
   state='end';stickId=null;jx=jz=0;stick.hidden=true;
   const rank=ents.map((e,i)=>({i,n:TEAMS[i].name,s:e.score})).sort((a,b)=>b.s-a.s);
   const top=rank[0].s,tie=rank.filter(r=>r.s===top).length>1,youTop=player.score===top;
   const title=youTop?(tie?'Tied for first!':'You win!'):rank[0].n+' wins';
-  const best=Math.max(player.score,parseInt(safeGet('eggrush-best')||'0',10)||0);
-  safeSet('eggrush-best',String(best));
+  const bk='eggrush-best-'+dkey();
+  const best=Math.max(player.score,parseInt(safeGet(bk)||'0',10)||0);
+  safeSet(bk,String(best));
   const cls=['you','pip','moxie'];
   card.innerHTML='<h1>'+title+'</h1><p class="tag">Time is up. Final scores:</p>'+
     '<div class="rank">'+rank.map(r=>'<div><i class="dot '+cls[r.i]+'"></i>'+r.n+'<b>'+r.s+'</b></div>').join('')+'</div>'+
-    '<p class="sum"><span class="lbl">You hatched</span><i class="gem common"></i><b>'+player.hatched[0]+'</b><i class="gem rare"></i><b>'+player.hatched[1]+'</b><i class="gem epic"></i><b>'+player.hatched[2]+'</b><span class="lbl">Best score</span><b>'+best+'</b></p>'+
-    '<button class="go" id="go" type="button">Play again</button>';
+    '<p class="sum"><span class="lbl">You hatched</span><i class="gem common"></i><b>'+player.hatched[0]+'</b><i class="gem rare"></i><b>'+player.hatched[1]+'</b><i class="gem epic"></i><b>'+player.hatched[2]+'</b><span class="lbl">Best on '+diff.name+'</span><b>'+best+'</b></p>'+
+    diffPicker()+'<button class="go" id="go" type="button">Play again</button>'+'<p class="credit">Made by Gerard Reyes with Claude Fable 5.2</p>';
   overlay.hidden=false;
 }
-card.addEventListener('click',e=>{if(e.target.closest('#go'))startGame();});
+card.addEventListener('click',e=>{
+  const b=e.target.closest('[data-d]');
+  if(b){setDiff(b.dataset.d);return;}
+  if(e.target.closest('#go'))startGame();
+});
 
 // ---------- main loop ----------
 const look=new THREE.Vector3(0,0,0),want=new THREE.Vector3(),lt=new THREE.Vector3();
@@ -678,13 +779,14 @@ function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(.05,(now-last)/1000);last=now;clock+=dt;
   const live=state==='play';
+  hint.hidden=!(live&&stickId===null);
   if(live){
     tLeft-=dt;
     if(tLeft<=0){tLeft=0;endGame();}
     const mv=readInput();
     stepEnt(player,dt,mv[0],mv[1],dashQ,7.2);dashQ=false;
-    for(let i=1;i<3;i++){const m=aiMove(ents[i],dt);stepEnt(ents[i],dt,m[0],m[1],m[2],6.3);}
-    ents.forEach(e=>{pickups(e);nestLogic(e);});
+    for(let i=1;i<3;i++){const m=aiMove(ents[i],dt);stepEnt(ents[i],dt,m[0],m[1],m[2],diff.speed);}
+    ents.forEach(e=>{pickups(e);nestLogic(e,dt);});
     monsters.forEach(m=>updMonster(m,dt));
     spawnT-=dt;
     if(spawnT<=0){spawnT=2.4;if(eggs.length<8)spawnEgg();}
@@ -696,7 +798,7 @@ function frame(now){
     g.mesh.position.y=.6+Math.sin(g.t*3)*.12;g.mesh.rotation.y+=dt*1.5;
   }
   updNests(dt,live);updParticles(dt);
-  arrow.visible=live&&player.carry>=0;
+  arrow.visible=live&&player.bag.length>0;
   if(arrow.visible)arrow.position.y=4.2+Math.sin(clock*7)*.4;
   // camera
   const portrait=camera.aspect<.85,k=portrait?1.45:1;
@@ -710,6 +812,7 @@ function frame(now){
   updHud();
   renderer.render(scene,camera);
 }
+(function(){const k=safeGet('eggrush-diff');if(k&&DIFFS[k])diff=DIFFS[k];})();
 reset();showStart();
 requestAnimationFrame(frame);
 })();
